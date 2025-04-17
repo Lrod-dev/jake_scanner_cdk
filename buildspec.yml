@@ -1,0 +1,28 @@
+version: 0.2
+
+env:
+  variables:
+    S3_KEY: ""
+    BUCKET_NAME: ""
+
+phases:
+  install:
+    commands:
+      - echo "Installing Conda and Jake..."
+      - wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
+      - bash miniconda.sh -b -p $HOME/miniconda
+      - export PATH="$HOME/miniconda/bin:$PATH"
+      - source $HOME/miniconda/etc/profile.d/conda.sh
+      - conda init
+      - conda create -y -n scanenv python=3.10
+      - conda activate scanenv
+  build:
+    commands:
+      - echo "Downloading requirements from s3://$BUCKET_NAME/$S3_KEY"
+      - aws s3 cp s3://$BUCKET_NAME/$S3_KEY requirements.txt
+      - conda install --yes --file requirements.txt || echo "Failed some installs, proceeding"
+      - pip install jake
+      - jake ddt -f requirements.txt -o scan-results.txt
+      - OUTPUT_FOLDER=$(dirname $S3_KEY)
+      - aws s3 cp requirements.txt s3://env-scan-results/$OUTPUT_FOLDER/
+      - aws s3 cp scan-results.txt s3://env-scan-results/$OUTPUT_FOLDER/
